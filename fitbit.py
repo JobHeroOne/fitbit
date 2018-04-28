@@ -17,14 +17,22 @@ class Oauth():
 		self.authorization_base_url = 'https://www.fitbit.com/oauth2/authorize'
 		self.token_url = 'https://api.fitbit.com/oauth2/token'
 		
-		self.redirect_uri = 'http://localhost:8080'
-		self.redirect_uri_encoded = self.url_encode(self.redirect_uri)
-		
 		self.scopes = ['activity', 'heartrate', 'location', 'nutrition', 'profile', 'settings', 'sleep', 'social', 'weight']
 		self.expires_in = 604800
-		self.expires = ""
 		
 		self.response_type = "code" 
+
+		# settings to be loaded
+		self.client_id = ''
+		self.client_secret = ''
+		self.redirect_uri = ''
+		self.redirect_uri_encoded = ''
+
+		self.authorization_code = ''
+		
+		self.access_token = ''
+		self.refresh_token = ''
+		self.expires = ''
 
 
 	def create_config_file(self):
@@ -94,7 +102,13 @@ class Oauth():
 		# Get credentials
 		self.client_id = configParser.get('credentials', 'client_id')
 		self.client_secret = configParser.get('credentials', 'client_secret')
+		self.redirect_uri = configParser.get('credentials', 'redirect_uri')
+
+		# encoding client_id to base64
 		self.client_encoding_string = base64.encodestring(self.client_id + ":" + self.client_secret).replace('\n', '')
+
+		# encoding redirect url to url friendy text
+		self.redirect_uri_encoded = self.url_encode(self.redirect_uri)
 
 
 	def get_authorization_url(self):
