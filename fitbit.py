@@ -25,6 +25,7 @@ class Oauth():
 		# settings to be loaded
 		self.client_id = ''
 		self.client_secret = ''
+		self.client_encoding_string = ''
 		self.redirect_uri = ''
 		self.redirect_uri_encoded = ''
 
@@ -33,6 +34,24 @@ class Oauth():
 		self.access_token = ''
 		self.refresh_token = ''
 		self.expires = ''
+
+
+	def check_tokens(self):
+		'''
+		Checks if the currect tokens are still valid
+		'''
+
+		# check if the expiration date has passed, if so, refresh tokens
+		if datetime.datetime.strptime(self.expires, '%Y-%m-%d %H:%M:%S.%f') < datetime.datetime.now():
+			self.refresh_tokens()
+
+
+	def combine_scope(self):
+		'''
+		combined the list of scopes toa url friedly list
+		'''
+		
+		return self.url_encode(' '.join(self.scopes))
 
 
 	def create_config_file(self):
@@ -62,82 +81,32 @@ class Oauth():
 			configParser.write(config_file)		
 
 
-	def url_encode(self, input_string):
-		'''
-		converts a string to url encoding
-		'''
-
-		# reserved chars to be replaced by encoding
-		replace_char = {"=":"%3D", "!":"%21", "*":"%2A", "'":"%27", "(":"%28", ")":"%29", ";":"%3B", ":":"%3A", "@":"%40", "&":"%26", "+":"%2B", "$":"%24", ",":"%2C", "/":"%2F", "?":"%3F", "#":"%23", "[":"%5B", "]":"%5D", " ":"%20", '"':"%20", "-":"%2D", ".":"%2E", "<":"%3C", ">":"%3E", '\\':"%5C", "^":"%5E", "_":"%5F", "`":"%60", "{":"%7B", "|":"%7C", "}":"%7D", "~":"%7E"} 
-		
-		# replace % first
-		input_string = input_string.replace("%","%25")
-
-		# replace all other characters
-		for k,v in replace_char.items():
-			input_string = input_string.replace(k, v)
-
-		# return encoded
-		return input_string
-
-
-	def combine_scope(self):
-		'''
-		combined the list of scopes toa url friedly list
-		'''
-		
-		return self.url_encode(' '.join(self.scopes))
-
-
-	def load_credentials(self):
-		'''
-		Gets the credentials from the config file using configparser
-		'''
-
-		# Setup config parser
-		configParser = ConfigParser.RawConfigParser()
-		configFilePath = 'config.txt'
-		configParser.read(configFilePath)
-		
-		# Get credentials
-		self.client_id = configParser.get('credentials', 'client_id')
-		self.client_secret = configParser.get('credentials', 'client_secret')
-		self.redirect_uri = configParser.get('credentials', 'redirect_uri')
-
-		# encoding client_id to base64
-		self.client_encoding_string = base64.encodestring(self.client_id + ":" + self.client_secret).replace('\n', '')
-
-		# encoding redirect url to url friendy text
-		self.redirect_uri_encoded = self.url_encode(self.redirect_uri)
-
-
 	def get_authorization_url(self):
 		'''
 		Returns the authorization url for the end user
 		'''
 
+		# check for proper credentials
+		if self.client_encoding_string == '':
+			self.load_credentials()
+
+		# resturn authorization_url 
 		return self.authorization_base_url + "?response_type=" + self.response_type + "&client_id=" + self.client_id + "&redirect_uri=" + self.redirect_uri_encoded + "&scope=" + self.combine_scope() + "&expires_in=" + str(self.expires_in)
-
-
-	def load_authorization(self):
-		'''
-		Gets the authorization_code from the config file using configparser
-		'''
-
-		# Setup config parser
-		configParser = ConfigParser.RawConfigParser()
-		configFilePath = 'config.txt'
-		configParser.read(configFilePath)
-		
-		# Get authorization_code
-		self.authorization_code = configParser.get('authorization', 'authorization_code')
 
 
 	def get_tokens(self):
 		'''
 		Gets the access token and refresh token from the fitbit server
 		'''
-		
+
+		# check for proper credentials
+		if self.client_encoding_string == '':
+			self.load_credentials()
+
+		# check for proper authorization code
+		if self.authorization_code == '':
+			self.load_authorization()
+
 		# setup of question url
 		url = self.token_url
 
@@ -175,10 +144,69 @@ class Oauth():
 			configParser.write(config_file)
 
 
+	def load_credentials(self):
+		'''
+		Gets the credentials from the config file using configparser
+		'''
+
+		# Setup config parser
+		configParser = ConfigParser.RawConfigParser()
+		configFilePath = 'config.txt'
+		configParser.read(configFilePath)
+		
+		# Get credentials
+		self.client_id = configParser.get('credentials', 'client_id')
+		self.client_secret = configParser.get('credentials', 'client_secret')
+		self.redirect_uri = configParser.get('credentials', 'redirect_uri')
+
+		# encoding client_id to base64
+		self.client_encoding_string = base64.encodestring(self.client_id + ":" + self.client_secret).replace('\n', '')
+
+		# encoding redirect url to url friendy text
+		self.redirect_uri_encoded = self.url_encode(self.redirect_uri)
+
+
+	def load_authorization(self):
+		'''
+		Gets the authorization_code from the config file using configparser
+		'''
+
+		# Setup config parser
+		configParser = ConfigParser.RawConfigParser()
+		configFilePath = 'config.txt'
+		configParser.read(configFilePath)
+		
+		# Get authorization_code
+		self.authorization_code = configParser.get('authorization', 'authorization_code')
+
+
+	def load_tokens(self):
+		'''
+		Gets the tokens from the config file using configparser
+		'''
+
+		# Setup config parser
+		configParser = ConfigParser.RawConfigParser()
+		configFilePath = 'config.txt'
+		configParser.read(configFilePath)
+		
+		# Get tokens
+		self.access_token = configParser.get('tokens', 'access_token')
+		self.refresh_token = configParser.get('tokens', 'refresh_token')
+		self.expires =  configParser.get('tokens', 'expires')
+
+		# check iftokens are still valid
+		self.check_tokens()
+
+
 	def refresh_tokens(self):
 		'''
 		Gets the access token and refresh token from the fitbit server
 		'''
+
+		# check for proper credentials
+		if self.client_encoding_string == '':
+			self.load_credentials()
 		
 		# setup of question url
 		url = self.token_url
@@ -215,33 +243,24 @@ class Oauth():
 			configParser.write(config_file)
 
 
-	def load_tokens(self):
+	def url_encode(self, input_string):
 		'''
-		Gets the tokens from the config file using configparser
+		converts a string to url encoding
 		'''
 
-		# Setup config parser
-		configParser = ConfigParser.RawConfigParser()
-		configFilePath = 'config.txt'
-		configParser.read(configFilePath)
+		# reserved chars to be replaced by encoding
+		replace_char = {"=":"%3D", "!":"%21", "*":"%2A", "'":"%27", "(":"%28", ")":"%29", ";":"%3B", ":":"%3A", "@":"%40", "&":"%26", "+":"%2B", "$":"%24", ",":"%2C", "/":"%2F", "?":"%3F", "#":"%23", "[":"%5B", "]":"%5D", " ":"%20", '"':"%20", "-":"%2D", ".":"%2E", "<":"%3C", ">":"%3E", '\\':"%5C", "^":"%5E", "_":"%5F", "`":"%60", "{":"%7B", "|":"%7C", "}":"%7D", "~":"%7E"} 
 		
-		# Get tokens
-		self.access_token = configParser.get('tokens', 'access_token')
-		self.refresh_token = configParser.get('tokens', 'refresh_token')
-		self.expires =  configParser.get('tokens', 'expires')
+		# replace % first
+		input_string = input_string.replace("%","%25")
 
-		# check iftokens are still valid
-		self.check_tokens()
+		# replace all other characters
+		for k,v in replace_char.items():
+			input_string = input_string.replace(k, v)
 
+		# return encoded
+		return input_string
 
-	def check_tokens(self):
-		'''
-		Checks if the currect tokens are still valid
-		'''
-
-		# check if the expiration date has passed, if so, refresh tokens
-		if datetime.datetime.strptime(self.expires, '%Y-%m-%d %H:%M:%S.%f') < datetime.datetime.now():
-			self.refresh_tokens()
 
 
 class Fitbit():
@@ -253,6 +272,63 @@ class Fitbit():
 
 		# credentials
 		self.access_token = access_token
+
+
+	def heart_rate_intraday(self, user_id='-', start_date='today', end_time='1d', detail_level='1min'):
+		'''
+		Requests the heartrate data
+
+		user_id			The encoded ID of the user. Use "-" (dash) for current logged-in user.
+		start_date		The start date of the range, in the format yyyy-MM-dd or today.
+		end-time		The end of the period, in the format HH:mm or options 1d.
+		detail_level	Number of data points to include. Either 1sec or 1min.
+		'''
+		
+		# base url
+		url = "https://api.fitbit.com/1/user/[user_id]/activities/heart/date/[start_date]/[end_time]/[detail_level].json"
+
+		# values to update
+		values = {'[user_id]': user_id, '[start_date]': start_date, '[end_time]': end_time, '[detail_level]': detail_level}
+
+		# updating url with values
+		url = self.update_url(url, values)
+
+		# creating header
+		headers = {"Authorization": "Bearer " + self.access_token.replace("\n", "")}
+
+		# submitting request
+		response = requests.get(url=url, headers=headers).content
+
+		# response cleanup
+		return ast.literal_eval(response)['activities-heart-intraday']['dataset']
+
+
+	def heart_rate_series(self, user_id='-', start_date='today', end_date='1d'):
+		'''
+		Requests the heartrate data
+
+		user_id			The encoded ID of the user. Use "-" (dash) for current logged-in user.
+		start_date		The start date of the range, in the format yyyy-MM-dd or today.
+		end_date		The end date of the range, in the format yyyy-MM-dd or options are 1d, 7d, 30d, 1w, 1m.
+		'''
+		
+		# base url
+		url = "https://api.fitbit.com/1/user/[user_id]/activities/heart/date/[start_date]/[end_date].json"
+
+		# values to update
+		values = {'[user_id]': user_id, '[start_date]': start_date, '[end_date]': end_date}
+
+		# updating url with values
+		url = self.update_url(url, values)
+
+		# creating header
+		headers = {"Authorization": "Bearer " + self.access_token.replace("\n", "")}
+
+		# submitting request
+		response = requests.get(url=url, headers=headers).content
+
+		# response cleanup
+		return ast.literal_eval(response)['activities-heart'][0]['value']
 
 
 	def update_url(self, url, values):
@@ -295,73 +371,10 @@ class Fitbit():
 		return ast.literal_eval(response)['user']
 
 
-	def heart_rate_series(self, user_id='-', start_date='today', end_date='1d'):
-		'''
-		Requests the heartrate data
-
-		user_id			The encoded ID of the user. Use "-" (dash) for current logged-in user.
-		start_date		The start date of the range, in the format yyyy-MM-dd or today.
-		end_date		The end date of the range, in the format yyyy-MM-dd or options are 1d, 7d, 30d, 1w, 1m.
-		'''
-		
-		# base url
-		url = "https://api.fitbit.com/1/user/[user_id]/activities/heart/date/[start_date]/[end_date].json"
-
-		# values to update
-		values = {'[user_id]': user_id, '[start_date]': start_date, '[end_date]': end_date}
-
-		# updating url with values
-		url = self.update_url(url, values)
-
-		# creating header
-		headers = {"Authorization": "Bearer " + self.access_token.replace("\n", "")}
-
-		# submitting request
-		response = requests.get(url=url, headers=headers).content
-
-		# response cleanup
-		return ast.literal_eval(response)['activities-heart'][0]['value']
-
-
-	def heart_rate_intraday(self, user_id='-', start_date='today', end_time='1d', detail_level='1min'):
-		'''
-		Requests the heartrate data
-
-		user_id			The encoded ID of the user. Use "-" (dash) for current logged-in user.
-		start_date		The start date of the range, in the format yyyy-MM-dd or today.
-		end-time		The end of the period, in the format HH:mm or options 1d.
-		detail_level	Number of data points to include. Either 1sec or 1min.
-		'''
-		
-		# base url
-		url = "https://api.fitbit.com/1/user/[user_id]/activities/heart/date/[start_date]/[end_time]/[detail_level].json"
-
-		# values to update
-		values = {'[user_id]': user_id, '[start_date]': start_date, '[end_time]': end_time, '[detail_level]': detail_level}
-
-		# updating url with values
-		url = self.update_url(url, values)
-
-		# creating header
-		headers = {"Authorization": "Bearer " + self.access_token.replace("\n", "")}
-
-		# submitting request
-		response = requests.get(url=url, headers=headers).content
-
-		# response cleanup
-		return ast.literal_eval(response)['activities-heart-intraday']['dataset']
-
-
 def main():
 	login = Oauth()
 
-	# login.create_config_file()
-
-	# login.load_credentials()
-
 	# print login.get_authorization_url()
-
-	# login.load_authorization()
 
 	# login.get_tokens()
 
