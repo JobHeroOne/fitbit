@@ -3,6 +3,7 @@
 import ast
 import base64
 import ConfigParser
+import datetime
 import requests
 
 class Oauth():
@@ -21,13 +22,14 @@ class Oauth():
 		
 		self.scopes = ['activity', 'heartrate', 'location', 'nutrition', 'profile', 'settings', 'sleep', 'social', 'weight']
 		self.expires_in = 604800
+		self.expires = ""
 		
 		self.response_type = "code" 
 
 
 	def create_config_file(self):
 		'''
-		Creates an emtpy config file
+		Creates an emtpy config file, overwrites any existing values.
 		'''
 
 		# Setup config parser
@@ -44,6 +46,7 @@ class Oauth():
 		configParser.add_section('tokens')
 		configParser.set('tokens', 'access_token', "")
 		configParser.set('tokens', 'refresh_token', "")
+		configParser.set('tokens', 'expires', "")
 		
 		# write changes to config file
 		with open('config.txt', 'wb') as config_file:
@@ -133,13 +136,14 @@ class Oauth():
 
 		# post question to server
 		response = requests.post(url=url, headers=headers, params=params)
-
+		
 		# convert response to literal dict
 		tokens = ast.literal_eval(response.content)
 
 		# extract tokens from dict
 		self.access_token = tokens['access_token']
 		self.refresh_token = tokens['refresh_token']
+		self.expires = str(datetime.datetime.now() + datetime.timedelta(seconds=int(tokens['expires_in'])))
 
 		# Setup config parser
 		configParser = ConfigParser.ConfigParser()
@@ -149,6 +153,7 @@ class Oauth():
 		# add tokens to config file
 		configParser.set('tokens', 'access_token', self.access_token)
 		configParser.set('tokens', 'refresh_token', self.refresh_token)
+		configParser.set('tokens', 'expires', self.expires)
 		
 		# write changes to config file
 		with open('config.txt', 'wb') as config_file:
@@ -178,6 +183,7 @@ class Oauth():
 		# extract tokens from dict
 		self.access_token = tokens['access_token']
 		self.refresh_token = tokens['refresh_token']
+		self.expires = str(datetime.datetime.now() + datetime.timedelta(seconds=int(tokens['expires_in'])))
 
 		# Setup config parser
 		configParser = ConfigParser.ConfigParser()
@@ -187,6 +193,7 @@ class Oauth():
 		# add tokens to config file
 		configParser.set('tokens', 'access_token', self.access_token)
 		configParser.set('tokens', 'refresh_token', self.refresh_token)
+		configParser.set('tokens', 'expires', self.expires)
 		
 		# write changes to config file
 		with open('config.txt', 'wb') as config_file:
@@ -206,17 +213,71 @@ class Oauth():
 		# Get tokens
 		self.access_token = configParser.get('tokens', 'access_token')
 		self.refresh_token = configParser.get('tokens', 'refresh_token')
+		self.expires =  configParser.get('tokens', 'expires')
+
+		# check iftokens are still valid
+		self.check_tokens()
+
+
+	def check_tokens(self):
+		'''
+		Checks if the currect tokens are still valid
+		'''
+
+		# check if the expiration date has passed, if so, refresh tokens
+		if datetime.datetime.strptime(self.expires, '%Y-%m-%d %H:%M:%S.%f') < datetime.datetime.now():
+			self.refresh_tokens()
 
 
 class Fitbit():
 	'''
-	Handels the data requests to fitbit fter authentication
+	Handels the data requests to fitbit after authentication
 	'''
 
 	def __init__(self, access_token):
 
 		# credentials
 		self.access_token = access_token
+
+
+	def update_url(self, url, values):
+		'''
+		updates and replaces base url with values
+
+		url 	Base url that needs updating
+		values	Dictionary containing key value pair that needs to be updated in the base url 
+		'''
+
+		# updating url with values
+		for k,v in values.items():
+			url = url.replace(k,v)
+
+		return url
+
+
+	def user_details(self, user_id='-'):
+		''' 
+		Requests the users profile and settings
+
+		user-id		The encoded ID of the user. Use "-" (dash) for current logged-in user.
+		'''
+
+		url = "https://api.fitbit.com/1/user/[user_id]/profile.json" 
+
+		# values to update
+		values = {'[user_id]': user_id}
+
+		# updating url with values
+		url = self.update_url(url, values)
+
+		# creating header
+		headers = {"Authorization": "Bearer " + self.access_token.replace("\n", "")}
+
+		# submitting request
+		response = requests.get(url=url, headers=headers).content
+
+		# response cleanup
+		return ast.literal_eval(response)['user']
 
 
 	def heart_rate_series(self, user_id='-', start_date='today', end_date='1d'):
@@ -235,14 +296,16 @@ class Fitbit():
 		values = {'[user_id]': user_id, '[start_date]': start_date, '[end_date]': end_date}
 
 		# updating url with values
-		for k,v in values.items():
-			url = url.replace(k,v)
+		url = self.update_url(url, values)
 
 		# creating header
 		headers = {"Authorization": "Bearer " + self.access_token.replace("\n", "")}
 
 		# submitting request
-		return requests.get(url=url, headers=headers).content
+		response = requests.get(url=url, headers=headers).content
+
+		# response cleanup
+		return ast.literal_eval(response)['activities-heart'][0]['value']
 
 
 	def heart_rate_intraday(self, user_id='-', start_date='today', end_time='1d', detail_level='1min'):
@@ -262,14 +325,16 @@ class Fitbit():
 		values = {'[user_id]': user_id, '[start_date]': start_date, '[end_time]': end_time, '[detail_level]': detail_level}
 
 		# updating url with values
-		for k,v in values.items():
-			url = url.replace(k,v)
+		url = self.update_url(url, values)
 
 		# creating header
 		headers = {"Authorization": "Bearer " + self.access_token.replace("\n", "")}
 
 		# submitting request
-		return requests.get(url=url, headers=headers).content
+		response = requests.get(url=url, headers=headers).content
+
+		# response cleanup
+		return ast.literal_eval(response)['activities-heart-intraday']['dataset']
 
 
 def main():
@@ -277,7 +342,7 @@ def main():
 
 	# login.create_config_file()
 
-	login.load_credentials()
+	# login.load_credentials()
 
 	# print login.get_authorization_url()
 
@@ -289,7 +354,8 @@ def main():
 
 	fitbit = Fitbit(login.access_token)
 
-	print fitbit.heart_rate_intraday()
+	print (fitbit.heart_rate_intraday())
+
 
 
 if __name__ == "__main__":
