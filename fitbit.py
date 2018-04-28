@@ -39,6 +39,7 @@ class Oauth():
 		configParser.add_section('credentials')
 		configParser.set('credentials', 'client_id', "")
 		configParser.set('credentials', 'client_secret', "")
+		configParser.set('credentials', 'redirect_url', "")
 
 		configParser.add_section('authorization')
 		configParser.set('authorization', 'authorization_code', "")
