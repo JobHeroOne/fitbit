@@ -4,7 +4,9 @@ import ast
 import base64
 import ConfigParser
 import datetime
+import json
 import requests
+
 
 class Oauth():
 	'''
@@ -262,7 +264,6 @@ class Oauth():
 		return input_string
 
 
-
 class Fitbit():
 	'''
 	Handels the data requests to fitbit after authentication
@@ -272,6 +273,36 @@ class Fitbit():
 
 		# credentials
 		self.access_token = access_token
+
+
+	def activity_intraday(self, user_id='-', resource_path='steps', start_date='today', end_time='1d', detail_level='1min'):
+		'''
+		Requests the specified data
+
+		user_id			The encoded ID of the user. Use "-" (dash) for current logged-in user.
+		resource_path	Which datatype should be retrieved. Use 'calories', 'steps', 'distance', 'floors', 'elevation'
+		start_date		The start date of the range, in the format yyyy-MM-dd or today.
+		end-time		The end of the period, in the format HH:mm or options 1d.
+		detail_level	Number of data points to include. Either 1min or 15min.
+		'''
+		
+		# base url
+		url = "https://api.fitbit.com/1/user/[user_id]/activities/[resource-path]/date/[start_date]/[end_time]/[detail_level].json"
+
+		# values to update
+		values = {'[user_id]': user_id, '[resource-path]': resource_path, '[start_date]': start_date, '[end_time]': end_time, '[detail_level]': detail_level}
+
+		# updating url with values
+		url = self.update_url(url, values)
+
+		# creating header
+		headers = {"Authorization": "Bearer " + self.access_token.replace("\n", "")}
+
+		# submitting request
+		response = requests.get(url=url, headers=headers).content
+
+		# return as dict
+		return json.loads(response)
 
 
 	def heart_rate_intraday(self, user_id='-', start_date='today', end_time='1d', detail_level='1min'):
@@ -299,8 +330,8 @@ class Fitbit():
 		# submitting request
 		response = requests.get(url=url, headers=headers).content
 
-		# response cleanup
-		return ast.literal_eval(response)['activities-heart-intraday']['dataset']
+		# return as dict
+		return json.loads(response)
 
 
 	def heart_rate_series(self, user_id='-', start_date='today', end_date='1d'):
@@ -327,8 +358,8 @@ class Fitbit():
 		# submitting request
 		response = requests.get(url=url, headers=headers).content
 
-		# response cleanup
-		return ast.literal_eval(response)['activities-heart'][0]['value']
+		# return as dict
+		return json.loads(response)
 
 
 	def update_url(self, url, values):
@@ -367,8 +398,8 @@ class Fitbit():
 		# submitting request
 		response = requests.get(url=url, headers=headers).content
 
-		# response cleanup
-		return ast.literal_eval(response)['user']
+		# return as dict
+		return json.loads(response)
 
 
 def main():
@@ -382,8 +413,12 @@ def main():
 
 	fitbit = Fitbit(login.access_token)
 
-	print (fitbit.heart_rate_intraday())
+	# fitbit.heart_rate_intraday(start_date='2018-02-19')
 
+	the_data = fitbit.activity_intraday(resource_path='calories')
+
+	for n in the_data['activities-calories-intraday']['dataset']:
+		print n
 
 
 if __name__ == "__main__":
