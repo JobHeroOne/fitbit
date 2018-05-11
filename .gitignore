@@ -1,3 +1,9 @@
 config.txt
 config_backup.txt
 test.py
+fill_database.py
+database.py
+database_connection.py
+fill_database_location.py
+full_location.txt
+*.pyc
